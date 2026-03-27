@@ -18,6 +18,17 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL
   || `http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`;
 const REMOTE_MCP_SCOPE = "mcp";
 const RESOURCE_SERVER_URL = new URL("/mcp", PUBLIC_BASE_URL);
+const DEFAULT_ALLOWED_HOSTS = [
+  new URL(PUBLIC_BASE_URL).hostname,
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+];
+const ALLOWED_HOSTS = (
+  process.env.ALLOWED_HOSTS
+    ? process.env.ALLOWED_HOSTS.split(",").map((value) => value.trim()).filter(Boolean)
+    : DEFAULT_ALLOWED_HOSTS
+).filter((value, index, values) => values.indexOf(value) === index);
 
 let oauthProviderPromise: Promise<UnipiazzaOAuthProvider> | undefined;
 
@@ -70,6 +81,7 @@ function renderPendingCompletionPage(requestId: string) {
 export function createRemoteHttpApp() {
   const app = createMcpExpressApp({
     host: HOST,
+    allowedHosts: ALLOWED_HOSTS,
   });
 
   app.get("/health", (_req: any, res: any) => {

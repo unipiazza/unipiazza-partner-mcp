@@ -1,0 +1,31 @@
+{
+  "name": "unipiazza-partner-mcp",
+  "version": "1.0.0",
+  "description": "Read-only MCP server for accessing Unipiazza loyalty platform data over stdio or remote HTTP.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node --env-file=.env build/index.js",
+    "start:http": "node --env-file=.env build/http.js",
+    "setup": "node build/setup.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [],
+  "author": "Lorenzo Braghetto <lorenzo@team.unipiazza.it>",
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "axios": "^1.13.6",
+    "redis": "^5.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.2"
+  }
+}

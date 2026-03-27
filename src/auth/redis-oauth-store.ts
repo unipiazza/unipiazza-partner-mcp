@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createClient } from "redis";
 import { OAuthClientInformationFull } from "@modelcontextprotocol/sdk/shared/auth.js";
 import {
@@ -46,8 +47,19 @@ export class RedisOAuthStore implements OAuthStore {
   private constructor(private readonly client: RedisConnection) {}
 
   static async create(redisUrl: string) {
+    const caFile = process.env.REDIS_TLS_CA_FILE;
+    const useInsecureTls = process.env.REDIS_TLS_INSECURE === "true";
+    const socketTlsOptions = redisUrl.startsWith("rediss://")
+      ? {
+          tls: true as const,
+          rejectUnauthorized: !useInsecureTls,
+          ...(caFile ? { ca: readFileSync(caFile, "utf8") } : {}),
+        }
+      : undefined;
+
     const client = createClient({
       url: redisUrl,
+      ...(socketTlsOptions ? { socket: socketTlsOptions } : {}),
     });
     await client.connect();
 

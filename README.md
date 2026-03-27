@@ -171,6 +171,20 @@ REDIS_URL=redis://your-redis-host:6379/0
 OAUTH_REDIS_PREFIX=mcp_oauth
 ```
 
+If your Redis endpoint uses TLS with a private or non-standard certificate chain, you can either provide the CA bundle explicitly:
+
+```dotenv
+REDIS_URL=rediss://your-redis-host:6379/1
+REDIS_TLS_CA_FILE=/path/to/redis-ca.pem
+```
+
+or, for internal deployments where this tradeoff is acceptable, skip certificate validation:
+
+```dotenv
+REDIS_URL=rediss://your-redis-host:6379/1
+REDIS_TLS_INSECURE=true
+```
+
 If `OAUTH_STORE` is left as `memory`, remote OAuth tokens are stored only in-process and users may need to re-authenticate after a server restart.
 
 Operational notes for Redis are documented in [docs/redis-oauth.md](docs/redis-oauth.md).

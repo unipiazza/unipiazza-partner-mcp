@@ -18,6 +18,7 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL
   || `http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`;
 const REMOTE_MCP_SCOPE = "mcp";
 const RESOURCE_SERVER_URL = new URL("/mcp", PUBLIC_BASE_URL);
+const TRUST_PROXY = process.env.TRUST_PROXY;
 const DEFAULT_ALLOWED_HOSTS = [
   new URL(PUBLIC_BASE_URL).hostname,
   "localhost",
@@ -83,6 +84,18 @@ export function createRemoteHttpApp() {
     host: HOST,
     allowedHosts: ALLOWED_HOSTS,
   });
+
+  if (TRUST_PROXY) {
+    const trustProxyValue =
+      TRUST_PROXY === "true"
+        ? true
+        : TRUST_PROXY === "false"
+          ? false
+          : Number.isNaN(Number(TRUST_PROXY))
+            ? TRUST_PROXY
+            : Number(TRUST_PROXY);
+    app.set("trust proxy", trustProxyValue);
+  }
 
   app.get("/health", (_req: any, res: any) => {
     res.status(200).json({

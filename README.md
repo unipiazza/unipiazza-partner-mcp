@@ -157,11 +157,14 @@ PUBLIC_BASE_URL=https://your-mcp.example.com
 HOST=127.0.0.1
 PORT=3001
 ALLOWED_HOSTS=your-mcp.example.com,localhost,127.0.0.1
+TRUST_PROXY=true
 ```
 
 `PUBLIC_BASE_URL` must be the externally reachable base URL used by OAuth clients. In production it should be HTTPS.
 
 `ALLOWED_HOSTS` controls the host header validation enforced by the MCP Express transport. Set it to the public hostname used by clients and reverse proxies such as Nginx or Cloudflare. Keeping `HOST=127.0.0.1` is still recommended when the Node process sits behind a reverse proxy on the same machine.
+
+If the app is behind Cloudflare, Nginx, or any reverse proxy that sets `X-Forwarded-For`, set `TRUST_PROXY=true` so Express and the OAuth rate limiter can correctly identify client IPs.
 
 To persist remote OAuth sessions across MCP server restarts, enable Redis:
 

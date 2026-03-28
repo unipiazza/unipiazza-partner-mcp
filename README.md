@@ -45,18 +45,6 @@ Multi-shop behavior:
 
 The main use case for this repository is connecting Unipiazza data to an MCP-compatible AI client so the model can query structured business data through tools instead of relying on pasted reports or ad-hoc exports.
 
-Typical scenarios include:
-
-- a local desktop MCP client that launches the server over `stdio`
-- a hosted or browser-based MCP client that connects to a remote HTTP endpoint
-- an internal AI environment that supports MCP tool calls
-
-Suggested first steps in a new MCP session:
-
-1. Call `list_shops` to discover which shops the current authentication context can access.
-2. Choose a `shop_id` from the result.
-3. Call the domain tools needed for users, campaigns, loyalty, and analytics.
-
 Examples of questions an MCP client could answer with this server:
 
 - "Which shops can this account access?"
@@ -65,7 +53,28 @@ Examples of questions an MCP client could answer with this server:
 - "List recent campaigns and compare them with autopromo metrics."
 - "Explain the active rewards, boosters, and subscription setup for this shop."
 
-This section is intentionally an early draft. The exact configuration syntax varies across MCP clients, and broader client-by-client setup examples still need validation.
+Example Claude Code setup with a remote HTTP endpoint:
+
+```bash
+claude mcp add --transport http unipiazza https://mcp.unipiazza.it/mcp
+```
+
+Equivalent `add-json` example:
+
+```bash
+claude mcp add-json unipiazza '{
+  "type": "http",
+  "url": "https://mcp.unipiazza.it/mcp"
+}'
+```
+
+After adding the connector, open Claude Code and run:
+
+```text
+/mcp
+```
+
+Claude Code will open the browser and complete the OAuth flow automatically for the remote server. Anthropic documents both `claude mcp add --transport http ...` and `claude mcp add-json ...` for remote MCP servers.
 
 ### 2. Local stdio mode
 

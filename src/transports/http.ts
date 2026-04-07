@@ -39,6 +39,7 @@ type SessionState = {
   server: ReturnType<typeof createMcpServer>;
   transport: StreamableHTTPServerTransport;
   setExecutionContext: (context: ToolExecutionContext) => void;
+  authInfo?: any;
 };
 
 const httpSessions = new Map<string, SessionState>();
@@ -102,6 +103,19 @@ async function requireRemoteBearerAuth(req: any, res: any, next: any) {
   } catch (error) {
     return next(error);
   }
+}
+
+async function requireRemoteSessionOrBearerAuth(req: any, res: any, next: any) {
+  const sessionId = req.headers["mcp-session-id"];
+  if (typeof sessionId === "string") {
+    const sessionState = httpSessions.get(sessionId);
+    if (sessionState?.authInfo) {
+      req.auth = sessionState.authInfo;
+      return next();
+    }
+  }
+
+  return requireRemoteBearerAuth(req, res, next);
 }
 
 function buildExecutionContext(req: any, requestId: string): ToolExecutionContext {
@@ -171,6 +185,7 @@ function createSessionState() {
     setExecutionContext: (context) => {
       currentExecutionContext = context;
     },
+    authInfo: undefined,
   };
 
   transport.onclose = () => {
@@ -226,6 +241,9 @@ async function handleMcpPost(req: any, res: any) {
   }
 
   const requestId = randomUUID();
+  if (req.auth) {
+    sessionState.authInfo = req.auth;
+  }
   sessionState.setExecutionContext(buildExecutionContext(req, requestId));
 
   try {
@@ -254,6 +272,11 @@ async function handleMcpGet(req: any, res: any) {
   }
 
   const requestId = randomUUID();
+  if (req.auth) {
+    sessionState.authInfo = req.auth;
+  } else if (sessionState.authInfo) {
+    req.auth = sessionState.authInfo;
+  }
   sessionState.setExecutionContext(buildExecutionContext(req, requestId));
 
   try {
@@ -282,6 +305,11 @@ async function handleMcpDelete(req: any, res: any) {
   }
 
   const requestId = randomUUID();
+  if (req.auth) {
+    sessionState.authInfo = req.auth;
+  } else if (sessionState.authInfo) {
+    req.auth = sessionState.authInfo;
+  }
   sessionState.setExecutionContext(buildExecutionContext(req, requestId));
 
   try {
@@ -386,9 +414,9 @@ export function createRemoteHttpApp() {
     }
   });
 
-  app.get("/mcp", requireRemoteBearerAuth, handleMcpGet);
-  app.post("/mcp", requireRemoteBearerAuth, handleMcpPost);
-  app.delete("/mcp", requireRemoteBearerAuth, handleMcpDelete);
+  app.get("/mcp", requireRemoteSessionOrBearerAuth, handleMcpGet);
+  app.post("/mcp", requireRemoteSessionOrBearerAuth, handleMcpPost);
+  app.delete("/mcp", requireRemoteSessionOrBearerAuth, handleMcpDelete);
 
   app.all("/mcp", (_req: any, res: any) => {
     writeJsonError(res, 405, "Method not allowed.");

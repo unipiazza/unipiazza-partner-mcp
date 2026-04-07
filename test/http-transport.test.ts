@@ -221,7 +221,6 @@ describe("remote HTTP MCP transport", () => {
       body: undefined,
       headers: {
         accept: "text/event-stream",
-        authorization: "Bearer token",
         "mcp-session-id": "session-1",
       },
     };
@@ -233,7 +232,7 @@ describe("remote HTTP MCP transport", () => {
     expect(getRes.statusCode).toBe(204);
     expect(connectServerMock).toHaveBeenCalledOnce();
     expect(handleRequestMock).toHaveBeenCalledTimes(2);
-    expect(requireBearerAuthMock).toHaveBeenCalledTimes(2);
+    expect(requireBearerAuthMock).toHaveBeenCalledTimes(1);
     expect(closeTransportMock).not.toHaveBeenCalled();
     expect(closeServerMock).not.toHaveBeenCalled();
   });

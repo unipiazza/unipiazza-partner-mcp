@@ -9,6 +9,7 @@ const {
   closeServerMock,
   requireBearerAuthMock,
   createExecutionContextMock,
+  isInitializeRequestMock,
 } = vi.hoisted(() => ({
   handleRequestMock: vi.fn(),
   closeTransportMock: vi.fn(),
@@ -16,13 +17,34 @@ const {
   closeServerMock: vi.fn(),
   requireBearerAuthMock: vi.fn(),
   createExecutionContextMock: vi.fn(() => ({})),
+  isInitializeRequestMock: vi.fn(),
 }));
 
 vi.mock("@modelcontextprotocol/sdk/server/streamableHttp.js", () => ({
   StreamableHTTPServerTransport: class MockStreamableHTTPServerTransport {
-    handleRequest = handleRequestMock;
+    sessionId: string | undefined;
+    onclose?: () => void;
+    private readonly options: any;
+
+    constructor(options: any = {}) {
+      this.options = options;
+    }
+
+    handleRequest = async (req: any, res: any, body?: any) => {
+      if (!this.sessionId && req.method === "POST" && !req.headers["mcp-session-id"]) {
+        this.sessionId = "session-1";
+        if (this.sessionId) {
+          this.options.onsessioninitialized?.(this.sessionId);
+        }
+      }
+      return handleRequestMock(req, res, body);
+    };
     close = closeTransportMock;
   },
+}));
+
+vi.mock("@modelcontextprotocol/sdk/types.js", () => ({
+  isInitializeRequest: isInitializeRequestMock,
 }));
 
 vi.mock("@modelcontextprotocol/sdk/server/express.js", () => ({
@@ -139,6 +161,7 @@ describe("remote HTTP MCP transport", () => {
     closeServerMock.mockReset();
     requireBearerAuthMock.mockReset();
     createExecutionContextMock.mockClear();
+    isInitializeRequestMock.mockReset();
 
     requireBearerAuthMock.mockImplementation(
       () => (req: any, _res: any, next: any) => {
@@ -153,36 +176,66 @@ describe("remote HTTP MCP transport", () => {
       },
     );
 
+    isInitializeRequestMock.mockImplementation(
+      (body: any) => body?.method === "initialize",
+    );
+
     handleRequestMock.mockImplementation(async (_req: any, res: any) => {
       res.statusCode = 204;
       res.end();
     });
   });
 
-  it("allows authenticated GET requests on /mcp", async () => {
+  it("allows authenticated GET requests on /mcp after session initialization", async () => {
     const { createRemoteHttpApp } = await import("../src/transports/http.js");
     const app: any = createRemoteHttpApp();
-    const handlers = app.__routes.get.get("/mcp");
+    const postHandlers = app.__routes.post.get("/mcp");
+    const getHandlers = app.__routes.get.get("/mcp");
 
-    expect(handlers).toBeTruthy();
+    expect(postHandlers).toBeTruthy();
+    expect(getHandlers).toBeTruthy();
 
-    const req = {
+    const initializeReq = {
+      method: "POST",
+      body: {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-11-25",
+          capabilities: {},
+          clientInfo: { name: "test-client", version: "1.0.0" },
+        },
+      },
+      headers: {
+        authorization: "Bearer token",
+        accept: "application/json, text/event-stream",
+      },
+    };
+    const initializeRes = createMockResponse();
+
+    await runHandlers(postHandlers, initializeReq, initializeRes);
+
+    const getReq = {
       method: "GET",
       body: undefined,
       headers: {
         accept: "text/event-stream",
         authorization: "Bearer token",
+        "mcp-session-id": "session-1",
       },
     };
-    const res = createMockResponse();
+    const getRes = createMockResponse();
 
-    await runHandlers(handlers, req, res);
+    await runHandlers(getHandlers, getReq, getRes);
 
-    expect(res.statusCode).toBe(204);
-    expect(handleRequestMock).toHaveBeenCalledOnce();
-    expect(requireBearerAuthMock).toHaveBeenCalledOnce();
-    expect(closeTransportMock).toHaveBeenCalledOnce();
-    expect(closeServerMock).toHaveBeenCalledOnce();
+    expect(initializeRes.statusCode).toBe(204);
+    expect(getRes.statusCode).toBe(204);
+    expect(connectServerMock).toHaveBeenCalledOnce();
+    expect(handleRequestMock).toHaveBeenCalledTimes(2);
+    expect(requireBearerAuthMock).toHaveBeenCalledTimes(2);
+    expect(closeTransportMock).not.toHaveBeenCalled();
+    expect(closeServerMock).not.toHaveBeenCalled();
   });
 
   it("still rejects unsupported methods on /mcp", async () => {

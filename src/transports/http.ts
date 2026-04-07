@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import {
   getOAuthProtectedResourceMetadataUrl,
   mcpAuthRouter,
@@ -11,6 +12,7 @@ import { createExecutionContext } from "../core/context.js";
 import { createServer as createMcpServer } from "../core/server.js";
 import { UnipiazzaOAuthProvider } from "../auth/oauth-provider.js";
 import { getOAuthStore } from "../auth/store-factory.js";
+import { ToolExecutionContext } from "../core/context.js";
 
 const PORT = Number(process.env.PORT || 3001);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -32,6 +34,14 @@ const ALLOWED_HOSTS = (
 ).filter((value, index, values) => values.indexOf(value) === index);
 
 let oauthProviderPromise: Promise<UnipiazzaOAuthProvider> | undefined;
+
+type SessionState = {
+  server: ReturnType<typeof createMcpServer>;
+  transport: StreamableHTTPServerTransport;
+  setExecutionContext: (context: ToolExecutionContext) => void;
+};
+
+const httpSessions = new Map<string, SessionState>();
 
 async function getOAuthProvider() {
   if (!oauthProviderPromise) {
@@ -94,10 +104,7 @@ async function requireRemoteBearerAuth(req: any, res: any, next: any) {
   }
 }
 
-async function handleMcpRequest(req: any, res: any) {
-  const oauthProvider = await getOAuthProvider();
-  void oauthProvider;
-  const requestId = randomUUID();
+function buildExecutionContext(req: any, requestId: string): ToolExecutionContext {
   const authInfo = req.auth;
   const apiKeyFromAuthInfo =
     typeof authInfo?.extra?.apiKey === "string" ? authInfo.extra.apiKey : undefined;
@@ -136,32 +143,163 @@ async function handleMcpRequest(req: any, res: any) {
     },
   };
 
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
+  return createExecutionContext({
+    authMode,
+    authToken: apiKeyFromAuthInfo,
+    requestId,
+    logger,
+    authorizedShopIds,
   });
+}
+
+function createSessionState() {
+  let currentExecutionContext: ToolExecutionContext;
+
   const server = createMcpServer({
-    getExecutionContext: () =>
-      createExecutionContext({
-        authMode,
-        authToken: apiKeyFromAuthInfo,
-        requestId,
-        logger,
-        authorizedShopIds,
-      }),
+    getExecutionContext: () => currentExecutionContext,
+  });
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+    onsessioninitialized: (sessionId) => {
+      httpSessions.set(sessionId, sessionState);
+    },
   });
 
+  const sessionState: SessionState = {
+    server,
+    transport,
+    setExecutionContext: (context) => {
+      currentExecutionContext = context;
+    },
+  };
+
+  transport.onclose = () => {
+    const sessionId = transport.sessionId;
+    if (sessionId) {
+      httpSessions.delete(sessionId);
+    }
+    void server.close();
+  };
+
+  return sessionState;
+}
+
+async function getOrCreateSessionState(req: any, res: any) {
+  const sessionId = req.headers["mcp-session-id"];
+
+  if (typeof sessionId === "string" && httpSessions.has(sessionId)) {
+    return httpSessions.get(sessionId)!;
+  }
+
+  if (!sessionId && isInitializeRequest(req.body)) {
+    const sessionState = createSessionState();
+    await sessionState.server.connect(sessionState.transport);
+    return sessionState;
+  }
+
+  res.status(400).json({
+    jsonrpc: "2.0",
+    error: {
+      code: -32000,
+      message: "Bad Request: No valid session ID provided",
+    },
+    id: null,
+  });
+
+  return undefined;
+}
+
+function getExistingSessionState(req: any, res: any) {
+  const sessionId = req.headers["mcp-session-id"];
+  if (typeof sessionId === "string" && httpSessions.has(sessionId)) {
+    return httpSessions.get(sessionId)!;
+  }
+
+  res.status(400).send("Invalid or missing session ID");
+  return undefined;
+}
+
+async function handleMcpPost(req: any, res: any) {
+  const sessionState = await getOrCreateSessionState(req, res);
+  if (!sessionState) {
+    return;
+  }
+
+  const requestId = randomUUID();
+  sessionState.setExecutionContext(buildExecutionContext(req, requestId));
+
   try {
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
+    await sessionState.transport.handleRequest(req, res, req.body);
   } catch (error: any) {
-    logger.error("http_request_failed", { error: error.message });
+    console.error(
+      JSON.stringify({
+        level: "error",
+        transport: "http",
+        requestId,
+        message: "http_request_failed",
+        error: error.message,
+      }),
+    );
 
     if (!res.headersSent) {
       writeJsonError(res, 500, "Internal server error");
     }
-  } finally {
-    await transport.close();
-    await server.close();
+  }
+}
+
+async function handleMcpGet(req: any, res: any) {
+  const sessionState = getExistingSessionState(req, res);
+  if (!sessionState) {
+    return;
+  }
+
+  const requestId = randomUUID();
+  sessionState.setExecutionContext(buildExecutionContext(req, requestId));
+
+  try {
+    await sessionState.transport.handleRequest(req, res);
+  } catch (error: any) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        transport: "http",
+        requestId,
+        message: "http_request_failed",
+        error: error.message,
+      }),
+    );
+
+    if (!res.headersSent) {
+      writeJsonError(res, 500, "Internal server error");
+    }
+  }
+}
+
+async function handleMcpDelete(req: any, res: any) {
+  const sessionState = getExistingSessionState(req, res);
+  if (!sessionState) {
+    return;
+  }
+
+  const requestId = randomUUID();
+  sessionState.setExecutionContext(buildExecutionContext(req, requestId));
+
+  try {
+    await sessionState.transport.handleRequest(req, res);
+  } catch (error: any) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        transport: "http",
+        requestId,
+        message: "http_request_failed",
+        error: error.message,
+      }),
+    );
+
+    if (!res.headersSent) {
+      writeJsonError(res, 500, "Internal server error");
+    }
   }
 }
 
@@ -248,9 +386,9 @@ export function createRemoteHttpApp() {
     }
   });
 
-  app.get("/mcp", requireRemoteBearerAuth, handleMcpRequest);
-  app.post("/mcp", requireRemoteBearerAuth, handleMcpRequest);
-  app.delete("/mcp", requireRemoteBearerAuth, handleMcpRequest);
+  app.get("/mcp", requireRemoteBearerAuth, handleMcpGet);
+  app.post("/mcp", requireRemoteBearerAuth, handleMcpPost);
+  app.delete("/mcp", requireRemoteBearerAuth, handleMcpDelete);
 
   app.all("/mcp", (_req: any, res: any) => {
     writeJsonError(res, 405, "Method not allowed.");

@@ -79,6 +79,92 @@ function renderPendingCompletionPage(requestId: string) {
 </html>`;
 }
 
+async function requireRemoteBearerAuth(req: any, res: any, next: any) {
+  try {
+    const oauthProvider = await getOAuthProvider();
+    return requireBearerAuth({
+      verifier: oauthProvider,
+      requiredScopes: [REMOTE_MCP_SCOPE],
+      resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(
+        RESOURCE_SERVER_URL,
+      ),
+    })(req, res, next);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function handleMcpRequest(req: any, res: any) {
+  const oauthProvider = await getOAuthProvider();
+  void oauthProvider;
+  const requestId = randomUUID();
+  const authInfo = req.auth;
+  const apiKeyFromAuthInfo =
+    typeof authInfo?.extra?.apiKey === "string" ? authInfo.extra.apiKey : undefined;
+  const authorizedShopIds = Array.isArray(authInfo?.extra?.authorizedShopIds)
+    ? authInfo.extra.authorizedShopIds.filter(
+        (shopId: unknown): shopId is string => typeof shopId === "string",
+      )
+    : undefined;
+  const authMode =
+    authInfo?.extra?.authMode === "legacy-api-key"
+      ? "remote-api-key"
+      : "remote-api-key";
+
+  const logger = {
+    info: (message: string, meta?: Record<string, unknown>) => {
+      console.error(
+        JSON.stringify({
+          level: "info",
+          transport: "http",
+          requestId,
+          message,
+          ...(meta ?? {}),
+        }),
+      );
+    },
+    error: (message: string, meta?: Record<string, unknown>) => {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          transport: "http",
+          requestId,
+          message,
+          ...(meta ?? {}),
+        }),
+      );
+    },
+  };
+
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+  });
+  const server = createMcpServer({
+    getExecutionContext: () =>
+      createExecutionContext({
+        authMode,
+        authToken: apiKeyFromAuthInfo,
+        requestId,
+        logger,
+        authorizedShopIds,
+      }),
+  });
+
+  try {
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  } catch (error: any) {
+    logger.error("http_request_failed", { error: error.message });
+
+    if (!res.headersSent) {
+      writeJsonError(res, 500, "Internal server error");
+    }
+  } finally {
+    await transport.close();
+    await server.close();
+  }
+}
+
 export function createRemoteHttpApp() {
   const app = createMcpExpressApp({
     host: HOST,
@@ -162,93 +248,9 @@ export function createRemoteHttpApp() {
     }
   });
 
-  app.post(
-    "/mcp",
-    async (req: any, res: any, next: any) => {
-      try {
-        const oauthProvider = await getOAuthProvider();
-        return requireBearerAuth({
-          verifier: oauthProvider,
-          requiredScopes: [REMOTE_MCP_SCOPE],
-          resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(
-            RESOURCE_SERVER_URL,
-          ),
-        })(req, res, next);
-      } catch (error) {
-        return next(error);
-      }
-    },
-    async (req: any, res: any) => {
-      const oauthProvider = await getOAuthProvider();
-      void oauthProvider;
-      const requestId = randomUUID();
-      const authInfo = req.auth;
-      const apiKeyFromAuthInfo =
-        typeof authInfo?.extra?.apiKey === "string" ? authInfo.extra.apiKey : undefined;
-      const authorizedShopIds = Array.isArray(authInfo?.extra?.authorizedShopIds)
-        ? authInfo.extra.authorizedShopIds.filter(
-            (shopId: unknown): shopId is string => typeof shopId === "string",
-          )
-        : undefined;
-      const authMode =
-        authInfo?.extra?.authMode === "legacy-api-key"
-          ? "remote-api-key"
-          : "remote-api-key";
-
-      const logger = {
-        info: (message: string, meta?: Record<string, unknown>) => {
-          console.error(
-            JSON.stringify({
-              level: "info",
-              transport: "http",
-              requestId,
-              message,
-              ...(meta ?? {}),
-            }),
-          );
-        },
-        error: (message: string, meta?: Record<string, unknown>) => {
-          console.error(
-            JSON.stringify({
-              level: "error",
-              transport: "http",
-              requestId,
-              message,
-              ...(meta ?? {}),
-            }),
-          );
-        },
-      };
-
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-      });
-      const server = createMcpServer({
-        getExecutionContext: () =>
-          createExecutionContext({
-            authMode,
-            authToken: apiKeyFromAuthInfo,
-            requestId,
-            logger,
-            authorizedShopIds,
-          }),
-      });
-
-      try {
-        await server.connect(transport);
-        await transport.handleRequest(req, res, req.body);
-      } catch (error: any) {
-        logger.error("http_request_failed", { error: error.message });
-
-        if (!res.headersSent) {
-          writeJsonError(res, 500, "Internal server error");
-        }
-      } finally {
-        await transport.close();
-        await server.close();
-      }
-    },
-  );
+  app.get("/mcp", requireRemoteBearerAuth, handleMcpRequest);
+  app.post("/mcp", requireRemoteBearerAuth, handleMcpRequest);
+  app.delete("/mcp", requireRemoteBearerAuth, handleMcpRequest);
 
   app.all("/mcp", (_req: any, res: any) => {
     writeJsonError(res, 405, "Method not allowed.");

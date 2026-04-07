@@ -141,7 +141,9 @@ npm run start:http
 
 The remote server exposes:
 
+- `GET /mcp`
 - `POST /mcp`
+- `DELETE /mcp`
 - `GET /health`
 - `GET /authorize`
 - `POST /token`

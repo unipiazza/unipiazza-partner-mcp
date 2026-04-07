@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { InvalidGrantError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 
 const {
   initBackendAuthSessionMock,
@@ -174,5 +175,28 @@ describe("remote OAuth provider", () => {
       authorizedShopIds: ["shop-legacy"],
       authMode: "legacy-api-key",
     });
+  });
+
+  it("returns invalid_grant semantics for unknown refresh tokens", async () => {
+    const { InMemoryOAuthStore } = await import("../src/auth/oauth-store.ts");
+    const { UnipiazzaOAuthProvider } = await import(
+      "../src/auth/oauth-provider.ts"
+    );
+
+    const provider = new UnipiazzaOAuthProvider(
+      new InMemoryOAuthStore(),
+      new URL("https://mcp.example.test"),
+    );
+
+    await expect(
+      provider.exchangeRefreshToken(
+        {
+          client_id: "client-1",
+          redirect_uris: [new URL("https://client.example.test/callback")],
+          token_endpoint_auth_method: "none",
+        },
+        "missing-refresh-token",
+      ),
+    ).rejects.toBeInstanceOf(InvalidGrantError);
   });
 });

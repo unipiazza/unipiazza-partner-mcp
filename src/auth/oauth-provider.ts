@@ -3,6 +3,11 @@ import {
   AuthorizationParams,
   OAuthServerProvider,
 } from "@modelcontextprotocol/sdk/server/auth/provider.js";
+import {
+  InvalidGrantError,
+  InvalidRequestError,
+  InvalidTokenError,
+} from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import { OAuthClientInformationFull } from "@modelcontextprotocol/sdk/shared/auth.js";
 import {
   initBackendAuthSession,
@@ -66,7 +71,7 @@ export class UnipiazzaOAuthProvider implements OAuthServerProvider {
     const record = await this.store.getAuthorizationCode(authorizationCode);
 
     if (!record || record.clientId !== client.client_id) {
-      throw new Error("Invalid authorization code");
+      throw new InvalidGrantError("Invalid authorization code");
     }
     return record.codeChallenge;
   }
@@ -81,15 +86,15 @@ export class UnipiazzaOAuthProvider implements OAuthServerProvider {
     const record = await this.store.consumeAuthorizationCode(authorizationCode);
 
     if (!record || record.clientId !== client.client_id) {
-      throw new Error("Invalid authorization code");
+      throw new InvalidGrantError("Invalid authorization code");
     }
 
     if (redirectUri && redirectUri !== record.redirectUri) {
-      throw new Error("redirect_uri does not match");
+      throw new InvalidGrantError("redirect_uri does not match");
     }
 
     if (resource?.href && resource.href !== record.resource) {
-      throw new Error("resource does not match");
+      throw new InvalidRequestError("resource does not match");
     }
 
     const accessToken = await this.store.createAccessToken({
@@ -128,11 +133,11 @@ export class UnipiazzaOAuthProvider implements OAuthServerProvider {
     const record = await this.store.getRefreshToken(refreshToken);
 
     if (!record || record.clientId !== client.client_id) {
-      throw new Error("Invalid refresh token");
+      throw new InvalidGrantError("Invalid refresh token");
     }
 
     if (resource?.href && resource.href !== record.resource) {
-      throw new Error("resource does not match");
+      throw new InvalidRequestError("resource does not match");
     }
 
     const nextScopes = scopes && scopes.length > 0 ? scopes : record.scopes;
@@ -175,7 +180,7 @@ export class UnipiazzaOAuthProvider implements OAuthServerProvider {
 
     const accessToken = await this.store.getAccessToken(token);
     if (!accessToken) {
-      throw new Error("Invalid access token");
+      throw new InvalidTokenError("Invalid access token");
     }
 
     return this.toAuthInfo(accessToken);

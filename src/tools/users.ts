@@ -113,6 +113,44 @@ export const usersTools: Tool[] = [
     },
   },
   {
+    name: "get_history",
+    description:
+      "Get the shop-level customer activity history across all users: visits, rewards, redemptions, wallet movements, signups, and marketing events",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...shopIdParam,
+        page: {
+          type: "number",
+          description: "Page number (0-indexed, default 0)",
+        },
+        per_page: {
+          type: "number",
+          description: "Number of results per page (default 20)",
+        },
+        action: {
+          type: "string",
+          description:
+            "Optional event/action filter supported by the backend history feed",
+        },
+        start_date: {
+          type: "string",
+          description: "Optional start date filter in YYYY-MM-DD format",
+        },
+        end_date: {
+          type: "string",
+          description: "Optional end date filter in YYYY-MM-DD format",
+        },
+        items_count: {
+          type: "number",
+          description:
+            "Optional total items count hint forwarded to the backend history feed",
+        },
+      },
+      required: ["shop_id"],
+    },
+  },
+  {
     name: "get_user_history",
     description:
       "Get the visit and transaction history of a specific customer (check-ins, rewards earned, redemptions)",
@@ -209,6 +247,24 @@ export const usersHandlers: Record<
     if (!userId) throw new Error("Missing required argument 'user_id'");
     const data = await ctx.apiClient.get(
       `/users/${encodeURIComponent(userId)}`,
+      undefined,
+      args.shop_id as string | undefined,
+    );
+    return JSON.stringify(data, null, 2);
+  },
+
+  get_history: async (args, ctx) => {
+    const params = new URLSearchParams();
+    params.append("page", String((args.page as number) ?? 0));
+    params.append("per_page", String((args.per_page as number) ?? 20));
+    if (args.action) params.append("action", String(args.action));
+    if (args.start_date) params.append("start_date", String(args.start_date));
+    if (args.end_date) params.append("end_date", String(args.end_date));
+    if (args.items_count !== undefined)
+      params.append("items_count", String(args.items_count));
+
+    const data = await ctx.apiClient.get(
+      `/users/history?${params.toString()}`,
       undefined,
       args.shop_id as string | undefined,
     );

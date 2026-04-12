@@ -4,7 +4,8 @@ import type { ToolHandler } from "./index.js";
 const shopIdParam = {
   shop_id: {
     type: "string",
-    description: "The ID of the shop to query. Use list_shops to get the available shop IDs.",
+    description:
+      "The ID of the shop to query. Use list_shops to get the available shop IDs.",
   },
 };
 
@@ -24,7 +25,7 @@ export const usersTools: Tool[] = [
         },
         per_page: {
           type: "number",
-          description: "Results per page (default 20)",
+          description: "Results per page (default 20, max 50)",
         },
         sorting_by: {
           type: "string",
@@ -204,10 +205,7 @@ export const usersTools: Tool[] = [
 ];
 
 // Handlers map for users tools
-export const usersHandlers: Record<
-  string,
-  ToolHandler
-> = {
+export const usersHandlers: Record<string, ToolHandler> = {
   list_users: async (args, ctx) => {
     const params = new URLSearchParams();
     if (args.page !== undefined) params.append("page", String(args.page));

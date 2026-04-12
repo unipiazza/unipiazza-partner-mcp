@@ -4,7 +4,8 @@ import type { ToolHandler } from "./index.js";
 const shopIdParam = {
   shop_id: {
     type: "string",
-    description: "The ID of the shop to query. Use list_shops to get the available shop IDs.",
+    description:
+      "The ID of the shop to query. Use list_shops to get the available shop IDs.",
   },
 };
 
@@ -18,6 +19,16 @@ export const campaignsTools: Tool[] = [
       type: "object",
       properties: {
         ...shopIdParam,
+        start_date: {
+          type: "string",
+          description:
+            "Optional Start date in ISO 8601 format (e.g. 2025-01-01). Defaults to all-time.",
+        },
+        end_date: {
+          type: "string",
+          description:
+            "Optional End date in ISO 8601 format (e.g. 2025-12-31). Defaults to today.",
+        },
         page: {
           type: "number",
           description: "Page number (0-indexed, default 0)",
@@ -50,11 +61,13 @@ export const campaignsTools: Tool[] = [
         ...shopIdParam,
         start_date: {
           type: "string",
-          description: "Start date in ISO 8601 format (e.g. 2025-01-01). Defaults to all-time.",
+          description:
+            "Start date in ISO 8601 format (e.g. 2025-01-01). Defaults to all-time.",
         },
         end_date: {
           type: "string",
-          description: "End date in ISO 8601 format (e.g. 2025-12-31). Defaults to today.",
+          description:
+            "End date in ISO 8601 format (e.g. 2025-12-31). Defaults to today.",
         },
       },
       required: ["shop_id"],
@@ -67,7 +80,8 @@ export const campaignsHandlers: Record<string, ToolHandler> = {
   list_marketing_campaigns: async (args, ctx) => {
     const params = new URLSearchParams();
     if (args.page !== undefined) params.append("page", String(args.page));
-    if (args.per_page !== undefined) params.append("per_page", String(args.per_page));
+    if (args.per_page !== undefined)
+      params.append("per_page", String(args.per_page));
     const query = params.toString() ? `?${params.toString()}` : "";
     const data = await ctx.apiClient.get(
       `/campaigns${query}`,

@@ -133,6 +133,17 @@ export const usersTools: Tool[] = [
           type: "string",
           description:
             "Optional event/action filter supported by the backend history feed",
+          enum: [
+            "receipt",
+            "prize",
+            "promo",
+            "sign_up",
+            "follow",
+            "booster",
+            "wallet",
+            "wallet_receipt",
+            "giftcards",
+          ],
         },
         start_date: {
           type: "string",
@@ -141,11 +152,6 @@ export const usersTools: Tool[] = [
         end_date: {
           type: "string",
           description: "Optional end date filter in YYYY-MM-DD format",
-        },
-        items_count: {
-          type: "number",
-          description:
-            "Optional total items count hint forwarded to the backend history feed",
         },
       },
       required: ["shop_id"],
@@ -195,7 +201,7 @@ export const usersTools: Tool[] = [
   {
     name: "get_users_stats",
     description:
-      "Get aggregate statistics about the shop's customer base (total registered, active, new this month, etc.)",
+      "Retrieve a shop customer segmentation snapshot: counts by stored segment (new, vip, following, inactive, imported), optimized for quick access without advanced analytics",
     inputSchema: {
       type: "object",
       properties: { ...shopIdParam },
@@ -258,8 +264,6 @@ export const usersHandlers: Record<string, ToolHandler> = {
     if (args.action) params.append("action", String(args.action));
     if (args.start_date) params.append("start_date", String(args.start_date));
     if (args.end_date) params.append("end_date", String(args.end_date));
-    if (args.items_count !== undefined)
-      params.append("items_count", String(args.items_count));
 
     const data = await ctx.apiClient.get(
       `/users/history?${params.toString()}`,

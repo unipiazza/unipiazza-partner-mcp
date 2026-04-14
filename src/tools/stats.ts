@@ -4,7 +4,8 @@ import type { ToolHandler } from "./index.js";
 const shopIdParam = {
   shop_id: {
     type: "string",
-    description: "The ID of the shop to query. Use list_shops to get the available shop IDs.",
+    description:
+      "The ID of the shop to query. Use list_shops to get the available shop IDs.",
   },
 };
 
@@ -13,7 +14,7 @@ export const statsTools: Tool[] = [
   {
     name: "get_stats",
     description:
-      "Get the global KPIs for the shop: total visits, coins issued, active users, trends over time",
+      "Retrieve global shop KPIs: total visits, coins issued, active customers, and trend over time",
     inputSchema: {
       type: "object",
       properties: { ...shopIdParam },
@@ -23,7 +24,7 @@ export const statsTools: Tool[] = [
   {
     name: "get_stats_partial",
     description:
-      "Get shop KPIs filtered by a date range: visits, coins issued, active users within a specific period",
+      "Retrieve shop KPIs for a specific date range: visits, coins issued, and active customers within the selected period",
     inputSchema: {
       type: "object",
       properties: {
@@ -43,7 +44,7 @@ export const statsTools: Tool[] = [
   {
     name: "get_stats_users",
     description:
-      "Get detailed user base analytics: new vs returning customers, growth trend, churn indicators",
+      "Retrieve customer analytics by segment: lifecycle (new/active/at-risk/inactive/VIP/follower), channels (email/RCS/app), gender, and referral",
     inputSchema: {
       type: "object",
       properties: { ...shopIdParam },
@@ -52,8 +53,7 @@ export const statsTools: Tool[] = [
   },
   {
     name: "get_stats_timetable",
-    description:
-      "Get the hourly visit distribution for the shop — useful to understand peak hours and slow periods",
+    description: "Retrieve the hourly visit distribution for the shop",
     inputSchema: {
       type: "object",
       properties: { ...shopIdParam },

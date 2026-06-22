@@ -12,23 +12,13 @@ const shopIdParam = {
 // Tool definitions for the campaigns domain
 export const campaignsTools: Tool[] = [
   {
-    name: "list_marketing_campaigns",
+    name: "list_campaigns",
     description:
-      "Get a paginated list of marketing campaigns sent by the shop (email, RCS, push notifications), including campaign content, scheduling details, delivery metrics, and engagement metrics for each campaign.",
+      "Get a compact paginated list of campaigns (marketing + WhatsApp) for the selected shop.",
     inputSchema: {
       type: "object",
       properties: {
         ...shopIdParam,
-        start_date: {
-          type: "string",
-          description:
-            "Optional Start date in ISO 8601 format (e.g. 2025-01-01). Defaults to all-time.",
-        },
-        end_date: {
-          type: "string",
-          description:
-            "Optional End date in ISO 8601 format (e.g. 2025-12-31). Defaults to today.",
-        },
         page: {
           type: "number",
           description: "Page number (0-indexed, default 0)",
@@ -39,6 +29,71 @@ export const campaignsTools: Tool[] = [
         },
       },
       required: ["shop_id"],
+    },
+  },
+  {
+    name: "get_campaign_details",
+    description:
+      "Get compact details for a campaign by campaign_id (supports marketing + WhatsApp campaigns).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...shopIdParam,
+        campaign_id: {
+          type: "string",
+          description: "The campaign ID to inspect.",
+        },
+      },
+      required: ["shop_id", "campaign_id"],
+    },
+  },
+  {
+    name: "list_campaign_recipients",
+    description:
+      "Get a compact paginated recipients page for a campaign (not the full audience).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...shopIdParam,
+        campaign_id: {
+          type: "string",
+          description: "The campaign ID whose recipients should be listed.",
+        },
+        page: {
+          type: "number",
+          description: "Page number (0-indexed, default 0)",
+        },
+        per_page: {
+          type: "number",
+          description: "Results per page (default 20)",
+        },
+        sorting_by: {
+          type: "string",
+          enum: [
+            "name",
+            "opened_at",
+            "promo_delivered_at",
+            "generated_visits",
+            "generated_euros",
+          ],
+          description: "Sort field for recipients list.",
+        },
+        sorting_descending: {
+          type: "boolean",
+          description:
+            "Sort direction. True for descending, false for ascending.",
+        },
+        filter: {
+          type: "string",
+          enum: ["all", "opened", "not_opened", "promo_delivered"],
+          description: "Filter recipients by engagement or delivery status.",
+        },
+        q: {
+          type: "string",
+          description: "Optional free text query to search recipients.",
+        },
+      },
+      required: ["shop_id", "campaign_id"],
     },
   },
   {
@@ -77,7 +132,7 @@ export const campaignsTools: Tool[] = [
 
 // Handlers map for campaigns tools
 export const campaignsHandlers: Record<string, ToolHandler> = {
-  list_marketing_campaigns: async (args, ctx) => {
+  list_campaigns: async (args, ctx) => {
     const params = new URLSearchParams();
     if (args.page !== undefined) params.append("page", String(args.page));
     if (args.per_page !== undefined)
@@ -85,6 +140,38 @@ export const campaignsHandlers: Record<string, ToolHandler> = {
     const query = params.toString() ? `?${params.toString()}` : "";
     const data = await ctx.apiClient.get(
       `/campaigns${query}`,
+      undefined,
+      args.shop_id as string | undefined,
+    );
+    return JSON.stringify(data, null, 2);
+  },
+
+  get_campaign_details: async (args, ctx) => {
+    const campaignId = encodeURIComponent(String(args.campaign_id));
+    const data = await ctx.apiClient.get(
+      `/campaigns/${campaignId}`,
+      undefined,
+      args.shop_id as string | undefined,
+    );
+    return JSON.stringify(data, null, 2);
+  },
+
+  list_campaign_recipients: async (args, ctx) => {
+    const params = new URLSearchParams();
+    if (args.page !== undefined) params.append("page", String(args.page));
+    if (args.per_page !== undefined)
+      params.append("per_page", String(args.per_page));
+    if (args.sorting_by) params.append("sorting_by", String(args.sorting_by));
+    if (args.sorting_descending !== undefined) {
+      params.append("sorting_descending", String(args.sorting_descending));
+    }
+    if (args.filter) params.append("filter", String(args.filter));
+    if (args.q) params.append("q", String(args.q));
+
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const campaignId = encodeURIComponent(String(args.campaign_id));
+    const data = await ctx.apiClient.get(
+      `/campaigns/${campaignId}/recipients${query}`,
       undefined,
       args.shop_id as string | undefined,
     );

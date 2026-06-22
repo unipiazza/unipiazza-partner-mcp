@@ -19,7 +19,7 @@ This project exposes shop, customer, campaign, loyalty, and analytics data throu
 - Inspect shop details and reward products
 - Browse customers, search users, and inspect user history
 - Read aggregate analytics and date-filtered KPIs
-- Inspect marketing campaigns and automatic promotions
+- Inspect unified campaigns (marketing + WhatsApp) and automatic promotions
 - Read booster, wallet, gift card, and subscription data
 
 ## Architecture
@@ -50,7 +50,7 @@ Examples of questions an MCP client could answer with this server:
 - "Which shops can this account access?"
 - "Show me customers with birthdays this month for this shop."
 - "Summarize the main KPIs for this location."
-- "List recent campaigns and compare them with autopromo metrics."
+- "List recent campaigns (marketing + WhatsApp) and compare them with autopromo metrics."
 - "Explain the active rewards, boosters, and subscription setup for this shop."
 
 Example Claude Code setup with a remote HTTP endpoint:
@@ -221,7 +221,8 @@ In practice, local `stdio` mode and remote HTTP mode expose the same MCP tools. 
 ### Shop
 
 - `get_shop_details`: Returns the main shop profile and feature configuration for a specific shop. Depending on the backend response, this can include identity, location, app settings, and enabled modules such as subscriptions, boosters, wallets, gift cards, and other active features.
-- `get_shop_products`: Returns the reward and product catalog configured for the shop. This is useful when an AI client needs to inspect the current rewards setup, including reward names, points cost, publication state, and optional usage counters within a selected period.
+- `get_shop_products`: Returns the reward and product catalog configured for the shop. This is useful when an AI client needs to inspect the current rewards setup, including reward names, points cost, and publication state.
+- `get_prize_stats`: Returns aggregate reward redemption statistics by prize/product for a selected shop, with optional date range. This is the correct tool for questions such as how many pizzas, coffees, or other rewards were redeemed.
 
 ### Users
 
@@ -241,9 +242,16 @@ In practice, local `stdio` mode and remote HTTP mode expose the same MCP tools. 
 
 ### Campaigns
 
-- `list_marketing_campaigns`: Returns a paginated list of marketing campaigns sent by the shop. It is useful for reviewing campaign history, understanding which channels were used, and comparing delivery or engagement performance across campaigns.
+- `list_campaigns`: Returns a compact paginated list of campaigns for the selected shop, across both marketing and WhatsApp campaign types. It is useful for reviewing campaign history and comparing high-level performance across heterogeneous campaign channels.
+- `get_campaign_details`: Returns compact details for a specific campaign by `campaign_id`. Use it after `list_campaigns` when an AI client needs a focused campaign-level view without retrieving unrelated data.
+- `list_campaign_recipients`: Returns a compact paginated page of campaign recipients by `campaign_id`, with optional sorting, filtering, and free-text search. This tool intentionally returns one page at a time (not the full audience), mirroring the MCP strategy used for large user lists.
 - `get_autopromos`: Returns the automatic promotions configured for the shop. This helps an AI client understand the current automation setup, which lifecycle or behavioral triggers exist, and which promotions are active.
 - `get_autopromo_metrics`: Returns performance metrics for automatic promotions, optionally filtered by date range. This is the main analytics tool for evaluating whether automated campaigns are generating engagement, visits, and downstream value.
+
+### User Lists
+
+- `list_user_lists`: Returns paginated user lists configured in the shop, including static and dynamic list metadata.
+- `list_users`: Supports list-scoped retrieval through `list_id` and additional narrowing through `filters` so AI clients can keep queries focused and payloads compact.
 
 ### Boosters
 

@@ -9,9 +9,19 @@ describe("tool registry", () => {
 
   it("has a handler for every declared tool", () => {
     for (const tool of allTools) {
-      expect(allHandlers[tool.name], `Missing handler for ${tool.name}`).toBeTypeOf(
-        "function",
-      );
+      expect(
+        allHandlers[tool.name],
+        `Missing handler for ${tool.name}`,
+      ).toBeTypeOf("function");
     }
+  });
+
+  it("exposes the unified campaigns tool names", () => {
+    const names = allTools.map((tool) => tool.name);
+
+    expect(names).toContain("list_campaigns");
+    expect(names).toContain("get_campaign_details");
+    expect(names).toContain("list_campaign_recipients");
+    expect(names).not.toContain("list_marketing_campaigns");
   });
 });

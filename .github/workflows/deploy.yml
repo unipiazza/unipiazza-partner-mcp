@@ -1,0 +1,61 @@
+name: Deploy
+
+# Public repository: runs on GitHub-hosted runners (free for public repos), never on
+# our servers. Deploys only from master; no pull_request trigger.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - run: npm test
+
+      # Ship only what runs in production
+      - name: Package
+        run: |
+          npm ci --omit=dev
+          tar -cf "$RUNNER_TEMP/release.tar" build node_modules package.json package-lock.json
+
+      # The server key only runs `deploy-node unipiazza-mcp`: it installs the release,
+      # restarts the systemd unit, checks /health and rolls back if it fails.
+      # Host and host key are secrets so they are masked in this public log.
+      - name: Publish
+        env:
+          DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          install -m 600 /dev/null "$RUNNER_TEMP/deploy_key"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/deploy_key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$RUNNER_TEMP/known_hosts"
+          ssh -i "$RUNNER_TEMP/deploy_key" \
+            -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" \
+            "unipiazza@$VPS_HOST" "$GITHUB_SHA" < "$RUNNER_TEMP/release.tar"
+
+      - name: Remove deploy key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy_key" "$RUNNER_TEMP/known_hosts"

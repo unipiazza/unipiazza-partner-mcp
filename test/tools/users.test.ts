@@ -90,13 +90,12 @@ describe("usersHandlers", () => {
         action: "receipt",
         start_date: "2026-04-01",
         end_date: "2026-04-08",
-        items_count: 99,
       },
       ctx,
     );
 
     expect(getMock).toHaveBeenCalledWith(
-      "/users/history?page=3&per_page=10&action=receipt&start_date=2026-04-01&end_date=2026-04-08&items_count=99",
+      "/users/history?page=3&per_page=10&action=receipt&start_date=2026-04-01&end_date=2026-04-08",
       undefined,
       "shop-1",
     );
